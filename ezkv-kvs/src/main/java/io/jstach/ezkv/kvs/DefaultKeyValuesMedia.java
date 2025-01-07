@@ -5,6 +5,7 @@ import static io.jstach.ezkv.kvs.KeyValuesMedia.inputStreamToString;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.Reader;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -15,6 +16,8 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
@@ -76,8 +79,41 @@ enum DefaultKeyValuesMedia implements KeyValuesMedia, Parser, Formatter {
 		public void parse(String input, BiConsumer<String, String> consumer) {
 			parseUriQuery(input, true, consumer);
 		}
-	}
+	},
+	MANIFEST("application/x-manifest", "MF") {
+		@Override
+		public void parse(
+				InputStream input,
+				BiConsumer<String, String> consumer)
+				throws IOException {
+			Manifest manifest = new Manifest(input);
+			var es = manifest.getMainAttributes().entrySet();
+			for (var e : es) {
+				var name = (Attributes.Name) e.getKey();
+				String key = name.toString();
+				String value = (String) e.getValue();
+				if (key == null) continue;
+				if (value == null) continue;
+				consumer.accept(key, value);
+			}
+			
+		}
 
+		@Override
+		public void format(
+				Appendable appendable,
+				KeyValues kvs)
+				throws IOException {
+			Manifest manifest = new Manifest();
+			for (var kv : kvs) {
+				var atts = manifest.getMainAttributes();
+				atts.put(kv.key(), kv.value());
+			}
+			AppendableOutputStream os = new AppendableOutputStream(appendable);
+			manifest.write(os);
+		}
+	}
+	
 	;
 
 	private final String mediaType;
@@ -264,3 +300,46 @@ final class PropertiesParser {
 	}
 
 }
+class AppendableOutputStream extends OutputStream {
+
+    private final Appendable appendable;
+
+    /**
+     * Creates an OutputStream that writes to the given Appendable.
+     *
+     * @param appendable The Appendable to write to (e.g., StringBuilder or Writer).
+     */
+    public AppendableOutputStream(Appendable appendable) {
+        if (appendable == null) {
+            throw new NullPointerException("Appendable cannot be null");
+        }
+        this.appendable = appendable;
+    }
+
+    @Override
+    public void write(int b) {
+        // Write a single byte as a UTF-8 character
+        write(new byte[]{(byte) b}, 0, 1);
+    }
+
+    @Override
+    public void write(byte[] b, int off, int len) {
+        if (b == null) {
+            throw new NullPointerException("Byte array cannot be null");
+        }
+        if (off < 0 || len < 0 || off + len > b.length) {
+            throw new IndexOutOfBoundsException("Invalid offset/length for byte array");
+        }
+
+        // Convert the byte array to a String using UTF-8
+        String str = new String(b, off, len, StandardCharsets.UTF_8);
+
+        try {
+            // Append the string to the Appendable
+            appendable.append(str);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to append to Appendable", e);
+        }
+    }
+}
+

@@ -136,6 +136,33 @@ enum DefaultKeyValuesLoaderFinder implements KeyValuesLoaderFinder {
 			return maybeUseKeyFromUri(context, resource, kvs);
 		}
 	},
+	MANIFEST("manifest") {
+		@Override
+		protected KeyValues load(
+				LoaderContext context,
+				KeyValuesResource resource)
+				throws IOException {
+			var b = KeyValues.builder(resource);
+			var parser = DefaultKeyValuesMedia.MANIFEST.parser();
+			String path = normalizePath(resource.uri());
+			if (! path.isBlank()) {
+				ModuleLayer bootLayer = ModuleLayer.boot();
+				var module = bootLayer.findModule(path).orElseThrow(() -> {
+					 return new FileNotFoundException();
+				});
+				var is = module.getResourceAsStream("META-INF/MANIFEST.MF");
+				if (is == null) {
+					throw new FileNotFoundException("Manifest not found for module: " + module);
+				}
+				parser.parse(is, b::add);
+				return b.build();
+			}
+			var is = context.environment().getResourceStreamLoader().openStream("META-INF/MANIFEST.MF");
+			parser.parse(is, b::add);
+			return b.build();
+			
+		}
+	}
 
 	;
 
