@@ -101,4 +101,16 @@ class Evaluator {
 		}
 		return new BoolValue(false);
 	}
+	
+//	private StringValue evaluateGet(List<Expr> args) {
+//		if (args.size() < 2) {
+//			throw new IllegalArgumentException("get expects 2 or more arguments");
+//		}
+//		var lookup = switch(evaluate(args.getFirst())) {
+//		case LookupValue lv -> lv;
+//		default -> throw new IllegalArgumentException("get expects first arg lookup value");
+//		};
+//		String result = null;
+//		
+//	}
 }
